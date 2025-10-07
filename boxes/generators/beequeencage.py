@@ -41,10 +41,28 @@ class BeeQueenCage(Boxes):
         ap.add_argument("--ax", type=float, default=4.0,  help="Edge distance of holes along x [mm]")
         ap.add_argument("--ay", type=float, default=4.0,  help="Edge distance of holes along y [mm]")
 
-    def render(self):
-        t = self.thickness
-        s = self.spacing
+    def get_origin(self, edges):
+        edges = [self.edges.get(e, e) for e in edges]
+        edges += edges  # append for wrapping around
+        w0 = edges[-1].spacing() + self.spacing / 2.
+        h0 = edges[0].spacing() + self.spacing / 2. + self.burn
+        return w0, h0
 
+    def render_wall(self, edges, w, h, num_holes, g, dg, r, a, label, move="right", cb=None):
+        k = g + dg  # pitch of holes
+        w0, h0 = self.get_origin(edges)
+        xch = w0 + w/2.
+        l = w - 2 * a  # length of holes
+        bh = (h - k * num_holes) / 2. + dg / 2.  # offset of first hole
+
+        for n in range(0, num_holes):
+            self.rectangularHole(xch, h0 + bh + n * k, l, g, r, True, False)
+        if cb:
+            cb(w0, h0, w, h)
+        self.rectangularWall(w, h, edges, bedBolts=[None] * 4, move=move, label=label)
+
+
+    def render(self):
         ox, oy, oh = x, y, h = self.x, self.y, self.h
 
         if self.outside:
@@ -61,42 +79,19 @@ class BeeQueenCage(Boxes):
         r = self.r  # corner radius of holes
         d = self.d  # diameter of center hole on top
 
-        ly = y - 2 * ay  # length of holes over y-axis
-        lx = x - 2 * ax  # length of holes over x-axis
-
-        cx = x/2 + s/2 + t  # center x
-        cy = y/2 + s/2 + t  # center y
-
         k = g + dg  # pitch of holes
 
         nh = int((h - 2 * ah + dg/2) / k)  # number of holes over height
-        bh = (h - k * nh)/2. + t + s/2 + self.burn + dg/2.  # y offset of first hole over height
-
         ny = int((y - 2 * ah + dg/2) / k)  # number of holes over y (for bottom)
-        by = (y - k * ny)/2. + t + s/2 + self.burn + dg/2.  # y offset of first hole over y (for bottom)
 
-        d2 = d3 = None
+        self.render_wall("FFFF", x, h, nh, g, dg, r, ax, "Front", "right")
+        self.render_wall("FFFF", x, h, nh, g, dg, r, ax, "Back", "right")
+        self.render_wall("FfFf", y, h, nh, g, dg, r, ay, "Left", "right")
+        self.render_wall("FfFf", y, h, nh, g, dg, r, ay, "Right", "right")
 
-        # Front and Back
-        for label in ["Front", "Back"]:
-            for n in range(0, nh):
-                self.rectangularHole(cx, bh + n * k, lx, g, r, True, False)
-            self.rectangularWall(x, h, "FFFF", bedBolts=[d2] * 4, move="right", label=label)
-
-        # Left and Right
-        for label in ["Left", "Right"]:
-            for n in range(0, nh):
-                self.rectangularHole(cy, bh + n * k, ly, g, r, True, False)
-            self.rectangularWall(y, h, "FfFf", bedBolts=[d3, d2, d3, d2], move="right", label=label)
-
-        # Top
-        self.hole(cx, cy, d=d)
-        self.rectangularWall(x, y, "ffff", bedBolts=[d2, d3, d2, d3], move="up" if 2*oy <= oh else "right", label="Top")
-
-        # Bottom
-        for n in range(0, ny):
-            self.rectangularHole(cx, by + n * k, lx, g, r, True, False)
-        self.rectangularWall(x, y, "ffff", bedBolts=[d2, d3, d2, d3], label="Bottom")
+        self.render_wall("ffff", x, y, 0, g, dg, r, ax, "Top", "up" if 2*oy <= oh else "right",
+                         cb=lambda x0, h0, x, h: self.hole(x0 + x/2., h0 + h/2., d=d))
+        self.render_wall("ffff", x, y, ny, g, dg, r, ax, "Bottom", "right")
 
 
 class BeeQueenCageTight(BeeQueenCage):

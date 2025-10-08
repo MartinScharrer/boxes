@@ -18,6 +18,73 @@
 from boxes import Boxes, edges
 
 
+class BeeQueenCageSettings(edges.Settings):
+    """ Settings for BeeQueenCage
+
+    """
+
+    absolute_params = {
+        "d": 17.0,
+    }
+
+
+class BeeQueenCageWallSettings(edges.Settings):
+    """ Settings for walls of BeeQueenCage
+    """
+    NAME = None
+    PREFIX = None
+
+    params = {
+        "gap_width": (3.0, float, "gap width between holes (0 for no holes) [mm]"),
+        "gap_separation": (1.5, float, "distance between hole rows [mm]"),
+        "radius": (1.0, float, "corner radius of holes [mm]"),
+        "top_margin": (4.0, float, "distance of holes on top side [mm]"),
+        "bottom_margin": (4.0, float, "distance of holes on bottom side [mm]"),
+        "side_margin": (4.0, float, "side distance of holes [mm]"),
+    }
+
+    @classmethod
+    def parserArguments(cls, parser, prefix=None, **defaults):
+        name = cls.NAME or cls.__doc__.split("\n")[0]
+        if not prefix:
+            prefix = cls.PREFIX or cls.__name__[:-len("Settings")]
+        group = parser.add_argument_group(name)
+        group.prefix = prefix
+
+        for name, (default, t, description) in cls.params.items():
+            aname = name.replace(" ", "_")
+            group.add_argument(f"--{prefix}_{aname}",
+                               type=t,
+                               action="store", default=default,
+                               choices=None,
+                               help=description)
+
+
+class BeeQueenCageFrontWallSettings(BeeQueenCageWallSettings):
+    """ Settings for front wall of BeeQueenCage
+    """
+
+
+class BeeQueenCageBackWallSettings(BeeQueenCageWallSettings):
+    """ Settings for back wall of BeeQueenCage
+    """
+
+
+class BeeQueenCageLeftWallSettings(BeeQueenCageWallSettings):
+    """ Settings for left wall of BeeQueenCage
+    """
+
+
+class BeeQueenCageRightWallSettings(BeeQueenCageWallSettings):
+    """ Settings for right wall of BeeQueenCage
+    """
+
+
+class BeeQueenCageBottomWallSettings(BeeQueenCageWallSettings):
+    """ Settings for bottom wall of BeeQueenCage
+    """
+
+
 class BeeQueenCage(Boxes):
     """Cage box to house a bee queen"""
 
@@ -33,13 +100,13 @@ class BeeQueenCage(Boxes):
 
         # Custom UI parameters
         ap = self.argparser
-        ap.add_argument("--d",  type=float, default=17.0, help="Diameter of top hole [mm]")
-        ap.add_argument("--g",  type=float, default=3.0,  help="Gap width between holes [mm]")
-        ap.add_argument("--dg", type=float, default=1.5,  help="Distance between hole rows [mm]")
-        ap.add_argument("--r",  type=float, default=1.0,  help="Corner radius of holes [mm]")
-        ap.add_argument("--ah", type=float, default=4.0,  help="Edge distance of holes along height [mm]")
-        ap.add_argument("--ax", type=float, default=4.0,  help="Edge distance of holes along x [mm]")
-        ap.add_argument("--ay", type=float, default=4.0,  help="Edge distance of holes along y [mm]")
+        ap.add_argument("--d", type=float, default=17.0, help="Diameter of top hole [mm]")
+
+        self.addSettingsArgs(BeeQueenCageFrontWallSettings)
+        self.addSettingsArgs(BeeQueenCageBackWallSettings)
+        self.addSettingsArgs(BeeQueenCageLeftWallSettings)
+        self.addSettingsArgs(BeeQueenCageRightWallSettings)
+        self.addSettingsArgs(BeeQueenCageBottomWallSettings)
 
     def get_origin(self, edges):
         edges = [self.edges.get(e, e) for e in edges]
@@ -48,19 +115,29 @@ class BeeQueenCage(Boxes):
         h0 = edges[0].spacing() + self.spacing / 2. + self.burn
         return w0, h0
 
-    def render_wall(self, edges, w, h, num_holes, g, dg, r, a, label, move="right", cb=None):
-        k = g + dg  # pitch of holes
-        w0, h0 = self.get_origin(edges)
-        xch = w0 + w/2.
-        l = w - 2 * a  # length of holes
-        bh = (h - k * num_holes) / 2. + dg / 2.  # offset of first hole
+    def render_wall(self, edges, w, h, label, move="right", cb=None):
+        g = getattr(self, f"BeeQueenCage{label}Wall_gap_width", 0)
+        dg = getattr(self, f"BeeQueenCage{label}Wall_gap_separation", 0)
+        r = getattr(self, f"BeeQueenCage{label}Wall_radius", 0)
+        tm = getattr(self, f"BeeQueenCage{label}Wall_top_margin", 0)
+        bm = getattr(self, f"BeeQueenCage{label}Wall_bottom_margin", 0)
+        sm = getattr(self, f"BeeQueenCage{label}Wall_side_margin", 0)
 
-        for n in range(0, num_holes):
-            self.rectangularHole(xch, h0 + bh + n * k, l, g, r, True, False)
+        w0, h0 = self.get_origin(edges)
+
+        if g:
+            k = g + dg  # pitch of holes
+            num_holes = int((h - tm - bm + dg / 2) / k)  # number of holes over height
+            xch = w0 + w / 2.
+            l = w - 2 * sm  # length of holes
+            bh = (h - k * num_holes + dg + bm - tm) / 2.  # offset of first hole
+
+            for n in range(0, num_holes):
+                self.rectangularHole(xch, h0 + bh + n * k, l, g, r, True, False)
+
         if cb:
             cb(w0, h0, w, h)
         self.rectangularWall(w, h, edges, bedBolts=[None] * 4, move=move, label=label)
-
 
     def render(self):
         ox, oy, oh = x, y, h = self.x, self.y, self.h
@@ -70,34 +147,11 @@ class BeeQueenCage(Boxes):
             y = self.adjustSize(y)
             h = self.adjustSize(h)
 
-        g = self.g    # Gap
-        dg = self.dg  # Distance between gaps
-        ah = self.ah  # edge distance of holes (h-axis)
-        ax = self.ax  # edge distance of holes (x-axis)
-        ay = self.ay  # edge distance of holes (y-axis)
+        self.render_wall("FFFF", x, h, "Front", "right")
+        self.render_wall("FFFF", x, h, "Back", "right")
+        self.render_wall("FfFf", y, h, "Left", "right")
+        self.render_wall("FfFf", y, h, "Right", "right")
 
-        r = self.r  # corner radius of holes
-        d = self.d  # diameter of center hole on top
-
-        k = g + dg  # pitch of holes
-
-        nh = int((h - 2 * ah + dg/2) / k)  # number of holes over height
-        ny = int((y - 2 * ah + dg/2) / k)  # number of holes over y (for bottom)
-
-        self.render_wall("FFFF", x, h, nh, g, dg, r, ax, "Front", "right")
-        self.render_wall("FFFF", x, h, nh, g, dg, r, ax, "Back", "right")
-        self.render_wall("FfFf", y, h, nh, g, dg, r, ay, "Left", "right")
-        self.render_wall("FfFf", y, h, nh, g, dg, r, ay, "Right", "right")
-
-        self.render_wall("ffff", x, y, 0, g, dg, r, ax, "Top", "up" if 2*oy <= oh else "right",
-                         cb=lambda x0, h0, x, h: self.hole(x0 + x/2., h0 + h/2., d=d))
-        self.render_wall("ffff", x, y, ny, g, dg, r, ax, "Bottom", "right")
-
-
-class BeeQueenCageTight(BeeQueenCage):
-    """Cage box to house a bee queen - with tight spacing"""
-
-    def open(self):
-        self.reference = 0.
-        Boxes.open(self)
-        self.spacing = 2 * self.burn
+        self.render_wall("ffff", x, y, "Top", "up" if 2 * oy <= oh else "right",
+                         cb=lambda x0, h0, x, h: self.hole(x0 + x / 2., h0 + h / 2., d=self.d))
+        self.render_wall("ffff", x, y, "Bottom", "right")

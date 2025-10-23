@@ -39,7 +39,7 @@ class BeeQueenCageWallSettings(edges.Settings):
         "gap_separation": (1.5, float, "distance between hole rows [mm]"),
         "radius": (1.0, float, "corner radius of holes [mm]"),
         "top_margin": (4.0, float, "distance of holes on top side [mm]"),
-        "bottom_margin": (4.0, float, "distance of holes on bottom side [mm]"),
+        "bottom_margin": (22.0, float, "distance of holes on bottom side [mm]"),
         "side_margin": (4.0, float, "side distance of holes [mm]"),
     }
 

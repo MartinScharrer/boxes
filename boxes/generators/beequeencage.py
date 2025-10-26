@@ -100,8 +100,8 @@ Holes can be configured per side. The default value of 3.0mm is suitable as air 
 produce queen excluders (4.2mm) or drone excluders (5.2mm). Some space should be left closed to provide cover for
 the young queen against aggressive worker bees.
 
-If required a plug can be added to close the top opening. 
-By default it contains a inner cutout to fit a Nicot cell cup (CNE3) making it a wooden alternative to the 
+If required a plug can be added to close the top opening.
+By default it contains a inner cutout to fit a Nicot cell cup (CNE3) making it a wooden alternative to the
 plastic Nicot cell cup block (CNE2).
 """
 

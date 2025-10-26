@@ -1,16 +1,21 @@
 <?xml version='1.0' encoding='utf-8'?>
-<svg height="101.90mm" viewBox="0.0 0.0 152.00 101.90" width="152.00mm" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:svg="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<svg height="101.90mm" viewBox="0.0 0.0 178.70 101.90" width="178.70mm" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:svg="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 <!--
 BeeQueenCage - Cage box to house a bee queen
 
 
 Cage box to house a bee queen.
-The default opening on top is suitable for a Nicot queen-rearing socket or a cork plug.
+The default opening on top is suitable for a Nicot queen-rearing cell cup block (CNE2) or a cork plug.
 This makes the cage suitable as a hatching cage.
 
 Holes can be configured per side. The default value of 3.0mm is suitable as air holes, but this can be changed to
 produce queen excluders (4.2mm) or drone excluders (5.2mm). Some space should be left closed to provide cover for
 the young queen against aggressive worker bees.
+
+If required a plug can be added to close the top opening.
+By default it contains a inner cutout to fit a Nicot cell cup (CNE3) making it a wooden alternative to the
+plastic Nicot cell cup block (CNE2).
+
 
 
 Created with Boxes.py (https://boxes.hackerspace-bamberg.de/)
@@ -24,12 +29,17 @@ Command line (remove spaces between dashes): boxes BeeQueenCage
 <dc:description>Cage box to house a bee queen
 
 Cage box to house a bee queen.
-The default opening on top is suitable for a Nicot queen-rearing socket or a cork plug.
+The default opening on top is suitable for a Nicot queen-rearing cell cup block (CNE2) or a cork plug.
 This makes the cage suitable as a hatching cage.
 
 Holes can be configured per side. The default value of 3.0mm is suitable as air holes, but this can be changed to
 produce queen excluders (4.2mm) or drone excluders (5.2mm). Some space should be left closed to provide cover for
 the young queen against aggressive worker bees.
+
+If required a plug can be added to close the top opening.
+By default it contains a inner cutout to fit a Nicot cell cup (CNE3) making it a wooden alternative to the
+plastic Nicot cell cup block (CNE2).
+
 
 Created with Boxes.py (https://boxes.hackerspace-bamberg.de/)
 Command line: boxes BeeQueenCage
@@ -90,5 +100,13 @@ Command line short: boxes BeeQueenCage
 </g>
 <g id="p-6" style="fill:none;stroke-linecap:round;stroke-linejoin:round;">
   <text dominant-baseline="hanging" font-size="4px" style="font-family: sans-serif ; font-weight: normal; font-style: normal; fill: rgb(255,0,0)" text-anchor="middle" transform="matrix( 1.000 0.000 0.000 1.000 129.400 39.000 )">Bottom</text><path d="M 119.900 50.500 H 126.300 C 126.400 50.500 126.300 50.400 126.300 50.500 V 53.400 C 126.300 53.455 126.345 53.500 126.400 53.500 H 132.400 C 132.455 53.500 132.500 53.455 132.500 53.400 V 50.500 C 132.500 50.400 132.400 50.500 132.500 50.500 H 138.900 C 138.955 50.500 139.000 50.455 139.000 50.400 V 44.000 C 139.000 43.900 138.900 44.000 139.000 44.000 H 141.900 C 141.955 44.000 142.000 43.955 142.000 43.900 V 37.900 C 142.000 37.845 141.955 37.800 141.900 37.800 H 139.000 C 138.900 37.800 139.000 37.900 139.000 37.800 V 31.400 C 139.000 31.345 138.955 31.300 138.900 31.300 H 132.500 C 132.400 31.300 132.500 31.400 132.500 31.300 V 28.400 C 132.500 28.345 132.455 28.300 132.400 28.300 H 126.400 C 126.345 28.300 126.300 28.345 126.300 28.400 V 31.300 C 126.300 31.400 126.400 31.300 126.300 31.300 H 119.900 C 119.845 31.300 119.800 31.345 119.800 31.400 V 37.800 C 119.800 37.900 119.900 37.800 119.800 37.800 H 116.900 C 116.845 37.800 116.800 37.845 116.800 37.900 V 43.900 C 116.800 43.955 116.845 44.000 116.900 44.000 H 119.800 C 119.900 44.000 119.800 43.900 119.800 44.000 V 50.400 C 119.800 50.455 119.845 50.500 119.900 50.500" stroke="rgb(0,0,0)" stroke-width="0.20" />
+</g>
+<g id="p-7" style="fill:none;stroke-linecap:round;stroke-linejoin:round;">
+  <path d="M 164.500 67.700 C 164.500 69.310 164.037 70.887 163.167 72.241 C 162.296 73.596 161.054 74.672 159.589 75.341 C 158.125 76.010 156.498 76.244 154.905 76.015 C 153.311 75.785 151.816 75.103 150.599 74.048 C 149.382 72.994 148.494 71.612 148.040 70.067 C 147.587 68.521 147.587 66.879 148.040 65.333 C 148.494 63.788 149.382 62.406 150.599 61.352 C 151.816 60.297 153.311 59.615 154.905 59.385 C 156.498 59.156 158.125 59.390 159.589 60.059 C 161.054 60.728 162.296 61.804 163.167 63.159 C 164.037 64.513 164.500 66.090 164.500 67.700 Z" stroke="rgb(0,255,0)" stroke-width="0.20" />
+  <text dominant-baseline="hanging" font-size="4px" style="font-family: sans-serif ; font-weight: normal; font-style: normal; fill: rgb(255,0,0)" text-anchor="middle" transform="matrix( 1.000 0.000 0.000 1.000 156.100 68.500 )">Top</text><text dominant-baseline="hanging" font-size="4px" style="font-family: sans-serif ; font-weight: normal; font-style: normal; fill: rgb(255,0,0)" text-anchor="middle" transform="matrix( 1.000 0.000 0.000 1.000 156.100 62.900 )">Plug</text><path d="M 168.700 67.700 C 168.700 65.285 168.006 62.920 166.700 60.888 C 165.394 58.856 163.531 57.242 161.334 56.239 C 159.137 55.235 156.698 54.884 154.307 55.228 C 151.916 55.572 149.674 56.596 147.849 58.178 C 146.023 59.759 144.691 61.833 144.010 64.150 C 143.330 66.468 143.330 68.932 144.010 71.250 C 144.691 73.567 146.023 75.641 147.849 77.222 C 149.674 78.804 151.916 79.828 154.307 80.172 C 156.698 80.516 159.137 80.165 161.334 79.161 C 163.531 78.158 165.394 76.544 166.700 74.512 C 168.006 72.480 168.700 70.115 168.700 67.700" stroke="rgb(0,0,0)" stroke-width="0.20" />
+</g>
+<g id="p-8" style="fill:none;stroke-linecap:round;stroke-linejoin:round;">
+  <path d="M 156.825 45.000 C 156.825 45.906 156.565 46.793 156.075 47.555 C 155.585 48.317 154.887 48.922 154.063 49.298 C 153.239 49.674 152.324 49.806 151.428 49.677 C 150.531 49.548 149.690 49.164 149.006 48.571 C 148.321 47.978 147.822 47.200 147.566 46.331 C 147.311 45.462 147.311 44.538 147.566 43.669 C 147.822 42.800 148.321 42.022 149.006 41.429 C 149.690 40.836 150.531 40.452 151.428 40.323 C 152.324 40.194 153.239 40.326 154.063 40.702 C 154.887 41.078 155.585 41.683 156.075 42.445 C 156.565 43.207 156.825 44.094 156.825 45.000 Z" stroke="rgb(0,0,255)" stroke-width="0.20" />
+  <text dominant-baseline="hanging" font-size="4px" style="font-family: sans-serif ; font-weight: normal; font-style: normal; fill: rgb(255,0,0)" text-anchor="middle" transform="matrix( 1.000 0.000 0.000 1.000 152.100 45.800 )">Bottom</text><text dominant-baseline="hanging" font-size="4px" style="font-family: sans-serif ; font-weight: normal; font-style: normal; fill: rgb(255,0,0)" text-anchor="middle" transform="matrix( 1.000 0.000 0.000 1.000 152.100 40.200 )">Plug</text><path d="M 160.700 45.000 C 160.700 43.351 160.226 41.737 159.335 40.350 C 158.443 38.964 157.172 37.862 155.673 37.177 C 154.173 36.492 152.508 36.253 150.876 36.488 C 149.244 36.722 147.714 37.421 146.468 38.501 C 145.222 39.580 144.313 40.995 143.848 42.577 C 143.384 44.159 143.384 45.841 143.848 47.423 C 144.313 49.005 145.222 50.420 146.468 51.499 C 147.714 52.579 149.244 53.278 150.876 53.512 C 152.508 53.747 154.173 53.508 155.673 52.823 C 157.172 52.138 158.443 51.036 159.335 49.650 C 160.226 48.263 160.700 46.649 160.700 45.000" stroke="rgb(0,0,0)" stroke-width="0.20" />
 </g>
 </svg>

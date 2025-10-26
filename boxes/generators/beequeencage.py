@@ -18,16 +18,6 @@
 from boxes import Boxes, edges
 
 
-class BeeQueenCageSettings(edges.Settings):
-    """ Settings for BeeQueenCage
-
-    """
-
-    absolute_params = {
-        "d": 17.0,
-    }
-
-
 class BeeQueenCageWallSettings(edges.Settings):
     """ Settings for walls of BeeQueenCage
     """
@@ -127,7 +117,6 @@ class BeeQueenCage(Boxes):
 
             for n in range(0, num_holes):
                 self.rectangularHole(xch, bh + n * k, l, g, r, True, False)
-
 
     def render_top(self, x, h):
         self.hole(x / 2., h / 2., d=self.d)

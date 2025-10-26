@@ -4,8 +4,13 @@
 BeeQueenCage - Cage box to house a bee queen
 
 
-Cage box to house a bee queen. Opening on top suitable for Nicot-queen-rearing equipments.
-    Slots can be configured as queen or drone excluders or air holes. 
+Cage box to house a bee queen.
+The default opening on top is suitable for a Nicot queen-rearing socket or a cork plug.
+This makes the cage suitable as a hatching cage.
+
+Holes can be configured per side. The default value of 3.0mm is suitable as air holes, but this can be changed to
+produce queen excluders (4.2mm) or drone excluders (5.2mm). Some space should be left closed to provide cover for
+the young queen against aggressive worker bees.
 
 
 Created with Boxes.py (https://boxes.hackerspace-bamberg.de/)
@@ -18,8 +23,13 @@ Command line (remove spaces between dashes): boxes BeeQueenCage
 <dc:source>boxes BeeQueenCage</dc:source>
 <dc:description>Cage box to house a bee queen
 
-Cage box to house a bee queen. Opening on top suitable for Nicot-queen-rearing equipments.
-    Slots can be configured as queen or drone excluders or air holes. 
+Cage box to house a bee queen.
+The default opening on top is suitable for a Nicot queen-rearing socket or a cork plug.
+This makes the cage suitable as a hatching cage.
+
+Holes can be configured per side. The default value of 3.0mm is suitable as air holes, but this can be changed to
+produce queen excluders (4.2mm) or drone excluders (5.2mm). Some space should be left closed to provide cover for
+the young queen against aggressive worker bees.
 
 Created with Boxes.py (https://boxes.hackerspace-bamberg.de/)
 Command line: boxes BeeQueenCage

@@ -80,8 +80,13 @@ class BeeQueenCage(Boxes):
 
     ui_group = "Beekeeping"
 
-    description = """Cage box to house a bee queen. Opening on top suitable for Nicot-queen-rearing equipments.
-    Slots can be configured as queen or drone excluders or air holes. """
+    description = """Cage box to house a bee queen.
+The default opening on top is suitable for a Nicot queen-rearing socket or a cork plug.
+This makes the cage suitable as a hatching cage.
+
+Holes can be configured per side. The default value of 3.0mm is suitable as air holes, but this can be changed to
+produce queen excluders (4.2mm) or drone excluders (5.2mm). Some space should be left closed to provide cover for
+the young queen against aggressive worker bees."""
 
     def __init__(self) -> None:
         Boxes.__init__(self)

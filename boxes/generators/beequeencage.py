@@ -25,12 +25,12 @@ class BeeQueenCageWallSettings(edges.Settings):
     PREFIX = None
 
     params = {
-        "gap_width": (3.0, float, "gap width between holes (0 for no holes) [mm]"),
-        "gap_separation": (1.5, float, "distance between hole rows [mm]"),
-        "radius": (1.0, float, "corner radius of holes [mm]"),
-        "top_margin": (4.0, float, "distance of holes on top side [mm]"),
-        "bottom_margin": (22.0, float, "distance of holes on bottom side [mm]"),
-        "side_margin": (4.0, float, "side distance of holes [mm]"),
+        "airhole_width": (3.0, float, "width of air holes (0 for no holes) [mm]"),
+        "airhole_separation": (1.5, float, "distance between air holes [mm]"),
+        "radius": (1.0, float, "corner radius of air holes [mm]"),
+        "top_margin": (4.0, float, "distance of air holes on top side [mm]"),
+        "bottom_margin": (22.0, float, "distance of air holes on bottom side [mm]"),
+        "side_margin": (4.0, float, "side distance of air holes [mm]"),
     }
 
     @classmethod
@@ -98,12 +98,12 @@ class BeeQueenCage(Boxes):
         self.addSettingsArgs(BeeQueenCageRightWallSettings)
         self.addSettingsArgs(BeeQueenCageBottomWallSettings)
 
-    def callback(self, w, h, label):
+    def airholes(self, w, h, label):
         if label == "Top":
             self.render_top(w, h)
         else:
-            g = getattr(self, f"BeeQueenCage{label}Wall_gap_width", 0)
-            dg = getattr(self, f"BeeQueenCage{label}Wall_gap_separation", 0)
+            g = getattr(self, f"BeeQueenCage{label}Wall_airhole_width", 0)
+            dg = getattr(self, f"BeeQueenCage{label}Wall_airhole_separation", 0)
             r = getattr(self, f"BeeQueenCage{label}Wall_radius", 0)
             tm = getattr(self, f"BeeQueenCage{label}Wall_top_margin", 0)
             bm = getattr(self, f"BeeQueenCage{label}Wall_bottom_margin", 0)
@@ -123,7 +123,7 @@ class BeeQueenCage(Boxes):
 
     def render_wall(self, edges, w, h, label, move="right"):
         self.rectangularWall(w, h, edges, bedBolts=[None] * 4,
-                             move=move, label=label, callback=[lambda: self.callback(w, h, label)])
+                             move=move, label=label, callback=[lambda: self.airholes(w, h, label)])
 
     def render(self):
         ox, oy, oh = x, y, h = self.x, self.y, self.h

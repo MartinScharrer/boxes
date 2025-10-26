@@ -16,6 +16,7 @@
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from boxes import Boxes, edges
+from boxes.Color import Color
 
 
 class BeeQueenCageWallSettings(edges.Settings):
@@ -75,18 +76,34 @@ class BeeQueenCageBottomWallSettings(BeeQueenCageWallSettings):
     """
 
 
+class BeeQueenCagePlugSettings(BeeQueenCageWallSettings):
+    """ Settings for plug of BeeQueenCage
+    """
+    params = {
+        'diameter_top': (25.0, float, "diameter of top part of the plug (0 for no plug) [mm]"),
+        'diameter_bottom': (17.0, float,
+                            "diameter of bottom part of the plug (Should correspondent to hole diameter) [mm]"),
+        'diameter_inner': (9.65, float, "diameter of inner cutout in bottom part (0 for no inner cutout) [mm]"),
+    }
+
+
 class BeeQueenCage(Boxes):
     """Cage box to house a bee queen"""
 
     ui_group = "Beekeeping"
 
     description = """Cage box to house a bee queen.
-The default opening on top is suitable for a Nicot queen-rearing socket or a cork plug.
+The default opening on top is suitable for a Nicot queen-rearing cell cup block (CNE2) or a cork plug.
 This makes the cage suitable as a hatching cage.
 
 Holes can be configured per side. The default value of 3.0mm is suitable as air holes, but this can be changed to
 produce queen excluders (4.2mm) or drone excluders (5.2mm). Some space should be left closed to provide cover for
-the young queen against aggressive worker bees."""
+the young queen against aggressive worker bees.
+
+If required a plug can be added to close the top opening. 
+By default it contains a inner cutout to fit a Nicot cell cup (CNE3) making it a wooden alternative to the 
+plastic Nicot cell cup block (CNE2).
+"""
 
     def __init__(self) -> None:
         Boxes.__init__(self)
@@ -102,6 +119,7 @@ the young queen against aggressive worker bees."""
         self.addSettingsArgs(BeeQueenCageLeftWallSettings)
         self.addSettingsArgs(BeeQueenCageRightWallSettings)
         self.addSettingsArgs(BeeQueenCageBottomWallSettings)
+        self.addSettingsArgs(BeeQueenCagePlugSettings)
 
     def airholes(self, w, h, label):
         if label == "Top":
@@ -130,6 +148,18 @@ the young queen against aggressive worker bees."""
         self.rectangularWall(w, h, edges, bedBolts=[None] * 4,
                              move=move, label=label, callback=[lambda: self.airholes(w, h, label)])
 
+    def render_plug(self):
+        """ Render round plug for the bee queen cage"""
+        dt = getattr(self, "BeeQueenCagePlug_diameter_top", 0)
+        db = getattr(self, "BeeQueenCagePlug_diameter_bottom", 0)
+        di = getattr(self, "BeeQueenCagePlug_diameter_inner", 0)
+
+        if dt > 0 and db > 0:
+            with self.saved_context():
+                self.parts.disc(dt, label="Plug\nTop", move="up",
+                                callback=lambda: self.hole(0, 0, d=db, color=Color.ETCHING))
+                self.parts.disc(db, label="Plug\nBottom", callback=None if di == 0 else lambda: self.hole(0, 0, d=di))
+
     def render(self):
         ox, oy, oh = x, y, h = self.x, self.y, self.h
 
@@ -143,5 +173,13 @@ the young queen against aggressive worker bees."""
         self.render_wall("FfFf", y, h, "Left", "right")
         self.render_wall("FfFf", y, h, "Right", "right")
 
-        self.render_wall("ffff", x, y, "Top", "up" if 2 * oy <= oh else "right")
-        self.render_wall("ffff", x, y, "Bottom", "right")
+        with self.saved_context():
+            self.render_wall("ffff", x, y, "Top", "up" if 2 * oy <= oh else "right")
+            self.render_wall("ffff", x, y, "Bottom", "right")
+
+        # Move drawing point to the right for lid rendering
+        if 2 * oy > oh:
+            self.render_wall("ffff", x, y, "Top", "right only")
+        self.render_wall("ffff", x, y, "Bottom", "right only")
+
+        self.render_plug()

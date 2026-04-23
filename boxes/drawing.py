@@ -11,7 +11,7 @@ from affine import Affine
 from boxes.extents import Extents
 
 EPS = 1e-4
-PADDING = 10
+PADDING = 0
 
 RANDOMIZE_COLORS = False  # enable to ease check for continuity of paths
 
@@ -995,7 +995,7 @@ class LBRN2Surface(Surface):
 
         url = self.metadata["url"].replace("&render=1", "") # remove render argument to get web form again
 
-        pl = ET.SubElement(svg, "Notes", ShowOnLoad="1", Notes="File created by Boxes.py script, programmed by Florian Festi.\nLightburn output by Klaus Steinhammer.\n\nURL with settings:\n" + str(url))
+        pl = ET.SubElement(svg, "Notes", ShowOnLoad="0", Notes="File created by Boxes.py script, programmed by Florian Festi.\nLightburn output by Klaus Steinhammer.\n\nURL with settings:\n" + str(url))
         pl.text = ""
         pl.tail = "\n"
 

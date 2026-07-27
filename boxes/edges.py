@@ -24,6 +24,7 @@ from typing import Any, final
 from typing_extensions import deprecated, override
 
 from boxes import gears
+from boxes.Color import Color
 
 
 def argparseSections(s: str) -> list[float]:
@@ -2424,7 +2425,7 @@ class FlexEdge(BaseEdge):
     char = 'X'
     description = "Flex cut"
 
-    def __call__(self, x, h, **kw):
+    def __call__(self, x, h, color=Color.MAGENTA, **kw):
         dist = self.settings.distance
         connection = self.settings.connection
         width = self.settings.width
@@ -2437,6 +2438,8 @@ class FlexEdge(BaseEdge):
         sheight = ((h - connection) / sections) - connection
 
         self.ctx.stroke()
+        self.ctx.save()
+        self.set_source_color(color)
         for i in range(1, lines):
             pos = i * dist + leftover / 2
 
@@ -2469,6 +2472,7 @@ class FlexEdge(BaseEdge):
                         self.ctx.line_to(pos, h - 2 * (j + 1) * (sheight + connection))
 
         self.ctx.stroke()
+        self.ctx.restore()
         self.ctx.move_to(0, 0)
         self.ctx.line_to(x, 0)
         self.ctx.translate(*self.ctx.get_current_point())

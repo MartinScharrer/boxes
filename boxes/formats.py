@@ -19,7 +19,9 @@ import shutil
 import subprocess
 import tempfile
 import io
-from boxes.drawing import Context, LBRN2Surface, PSSurface, SVGSurface
+from io import BytesIO
+
+from boxes.drawing import Context, Surface, LBRN2Surface, PSSurface, SVGSurface
 
 
 class Formats:
@@ -68,7 +70,7 @@ class Formats:
             return sorted(self.formats.keys())
         return self._BASE_FORMATS
 
-    def getSurface(self, fmt):
+    def getSurface(self, fmt: str) -> tuple[Surface, Context]:
         if fmt in ("svg", "svg_Ponoko"):
             surface = SVGSurface()
         elif fmt == "lbrn2":
@@ -79,7 +81,7 @@ class Formats:
         ctx = Context(surface)
         return surface, ctx
 
-    def convert(self, data, fmt):
+    def convert(self, data: BytesIO, fmt: str) -> BytesIO:
 
         if fmt not in self._BASE_FORMATS:
             fd, tmpfile = tempfile.mkstemp()

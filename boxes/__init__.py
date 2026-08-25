@@ -27,8 +27,10 @@ import sys
 from argparse import ArgumentParser
 from contextlib import contextmanager
 from functools import wraps
+from io import BytesIO
 from shlex import quote
-from typing import Any
+from typing import Any, Annotated, cast, TypeAlias
+from collections.abc import Callable, Generator, Iterator, Sequence
 from xml.sax.saxutils import quoteattr
 
 import qrcode
@@ -38,11 +40,31 @@ from shapely.ops import split
 from boxes import edges, formats, gears, parts, pulley
 from boxes.Color import *
 from boxes.qrcode_factory import BoxesQrCodeFactory
-from boxes.vectors import kerf
+from boxes.vectors import kerf, Point as PointType
+from boxes.drawing import Context, Surface  # For type checking only
+
+### Type definitions for annotations
+Degrees: TypeAlias = float  # Angle in degrees
+Radians: TypeAlias = float  # Angle in radians
+
+CallbackType: TypeAlias = Callable[[int|None], None]
+CallbackArg: TypeAlias = CallbackType|Sequence[CallbackType]|None
+
+Edge:    TypeAlias = edges.BaseEdge     # Edge type (Edge object)
+EdgeArg: TypeAlias = str|Edge           # Edge argument (edge character or an Edge object)
+EdgeSeq: TypeAlias = EdgeArg|Sequence[EdgeArg] # Edge argument or sequence of edge arguments
+
+
+Border: TypeAlias = tuple[float, float]
+
+
+# Create cast None to simplify type checking of self.ctx
+NoneContext: Annotated[Context, "None casted to Context"] = cast(Context, cast(object, None))
+
 
 ### Helpers
 
-def dist(dx, dy):
+def dist(dx: float, dy: float) -> float:
     """
     Return distance
 
@@ -151,7 +173,7 @@ HexSizes = { # (nut width, nut height, shaft width)
 class NutHole:
     """Draw a hex nut"""
 
-    def __init__(self, boxes, settings) -> None:
+    def __init__(self, boxes: Boxes, settings) -> None:
         self.boxes = boxes
         self.ctx = boxes.ctx
         self.settings = settings
@@ -161,7 +183,7 @@ class NutHole:
 
     @restore
     @holeCol
-    def __call__(self, size, x=0, y=0, angle=0):
+    def __call__(self, size, x: float= 0., y: float= 0., angle: float= 0.):
         size = HexSizes.get(size, (size,))[0]
         side = size / 3 ** 0.5
         self.boxes.moveTo(x, y, angle)
@@ -175,7 +197,7 @@ class NutHole:
 ### Argument types
 ##############################################################################
 
-def argparseSections(s):
+def argparseSections(s) -> list[float]:
     """
     Parse sections parameter
 
@@ -207,7 +229,7 @@ def argparseSections(s):
 
     return result
 
-def argparseInts(s):
+def argparseInts(s: str) -> list:
     """
     Parse sections parameter
 
@@ -244,21 +266,21 @@ class ArgparseEdgeType:
         if edges:
             self.edges = list(edges)
 
-    def __call__(self, pattern):
+    def __call__(self, pattern: str) -> str:
         if len(pattern) != 1:
             raise ValueError("Edge type can only have one letter.")
         if pattern not in self.edges:
             raise ValueError("Use one of the following values: " +
-                             ", ".join(edges))
+                             ", ".join(self.edges))
         return pattern
 
-    def html(self, name, default, translate):
+    def html(self, name: str, default: Any, translate: Callable[[str], str]) -> str:
         options = "\n".join(
             """<option value="{}"{}>{}</option>""".format(e, ' selected="selected"' if e == default else "",
               translate("{} {}".format(e, self.names.get(e, "")))) for e in self.edges)
         return """<select name="{}" id="{}" aria-labeledby="{} {}" size="1">\n{}</select>\n""".format(name,  name, name+"_id", name+"_description", options)
 
-    def inx(self, name, viewname, arg):
+    def inx(self, name: str, viewname: str, arg) -> str:
         return ('        <param name="{}" type="optiongroup" appearance="combo" gui-text="{}" gui-description={}>\n'.format(name, viewname, quoteattr(arg.help or "")) +
                 ''.join('            <option value="{}">{} {}</option>\n'.format(
                     e, e, self.names.get(e, ""))
@@ -266,12 +288,12 @@ class ArgparseEdgeType:
                 '      </param>\n')
 
 class BoolArg:
-    def __call__(self, arg):
+    def __call__(self, arg: str) -> bool:
         if not arg or arg.lower() in ("none", "0", "off", "false"):
             return False
         return True
 
-    def html(self, name, default, _):
+    def html(self, name: str, default: Any, _) -> str:
         if isinstance(default, (str)):
             default = self(default)
         return """<input name="{}" type="hidden" value="0">
@@ -292,7 +314,7 @@ Values:
 
 """
 
-    absolute_params = {
+    absolute_params: dict[str, Any] = {
         'diameter' : 10.0,
         'distance' : 3.0,
         'style' : ('circle', ),
@@ -317,7 +339,7 @@ Values:
 
 """
 
-    absolute_params = {
+    absolute_params: dict[str, Any] = {
         "fill_pattern":        ("no fill", "hex", "square", "random", "hbar", "vbar"),
         "hole_style":          ("round", "triangle", "square", "hexagon", "octagon"),
         "max_random":          1000,
@@ -341,9 +363,40 @@ class Boxes:
 
     description: str = ""  # Markdown syntax is supported
 
+    # Type annotations of commonly used arguments
+    x: Annotated[float, "width"]
+    y: Annotated[float, "depth"]
+    h: Annotated[float, "height"]
+    thickness: Annotated[float, "thickness of material"]
+    burn: Annotated[float, "burn correction"]
+    sx: Annotated[list[float], "sections left to right"]
+    sy: Annotated[list[float], "sections back to front"]
+    sh: Annotated[list[float], "sections bottom to top"]
+    hi: Annotated[float, "height of inner walls"]
+    hole_dD: Annotated[list[float], "mounting hole diameter (shaft:head)"]
+    bottom_edge: Annotated[str, "edge type for bottom edge"]
+    top_edge: Annotated[str, "edge type for top edge"]
+    outside: Annotated[bool, "switch to treat sizes as outside measurements"]
+    nema_mount: Annotated[int, "NEMA size of motor"]
+
+    # Attributes set outside __init__
+    format: str
+    surface: Surface
+    bedBoltSettings: tuple[float, float, float, float, float]
+    spacing: float
+    reference: float
+    qr_code: bool
+    inner_corners: str
+    tabs: Annotated[float, "width of tabs holding the parts in place"]
+
+    # Parts added as attributes
+    fingerHolesAt: edges.FingerHoles
+
+
+
     def __init__(self) -> None:
         self.formats = formats.Formats()
-        self.ctx = None
+        self.ctx: Context = NoneContext
         description: str = ""
         if self.__doc__:
             description = inspect.cleandoc(self.__doc__)
@@ -357,7 +410,7 @@ class Boxes:
         short_description: str = ""
         if self.__doc__:
             short_description = inspect.cleandoc(self.__doc__)
-        self.metadata = {
+        self.metadata: dict[str, Any] = {
             "name": self.__class__.__name__,
             "short_description": short_description,
             "description": self.description,
@@ -369,9 +422,6 @@ class Boxes:
             "creation_date": datetime.datetime.now(),
             "reproducible": False,  # If True output does not contain variable content like creation date.
         }
-
-        # Dummy attribute for static analytic tools. Will be overwritten by `argparser` at runtime.
-        self.thickness: float = 0.0
 
         self.argparser._action_groups[1].title = self.__class__.__name__ + " Settings"
         defaultgroup = self.argparser.add_argument_group(
@@ -405,7 +455,7 @@ class Boxes:
         defaultgroup.add_argument(
             "--output", action="store", type=str, default="box.svg",
             help="name of resulting file")
-        def spacing_type(x):
+        def spacing_type(x: str) -> tuple[float, ...]:
             try:
                 return (float(x), 0.)
             except ValueError:
@@ -418,7 +468,7 @@ class Boxes:
             help="print surrounding boxes for some structures [\U0001F6C8](https://florianfesti.github.io/boxes/html/usermanual.html#debug)")
 
     @contextmanager
-    def saved_context(self):
+    def saved_context(self) -> Generator[Context]:
         """
         Generator: for saving and restoring contexts.
         """
@@ -429,13 +479,13 @@ class Boxes:
         finally:
             cr.restore()
 
-    def set_source_color(self, color):
+    def set_source_color(self, color: ColorValue) -> None:
         """
         Sets the color of the pen.
         """
         self.ctx.set_source_rgb(*color)
 
-    def set_font(self, style, bold=False, italic=False):
+    def set_font(self, style: str, bold: bool= False, italic: bool= False) -> None:
         """
         Set font style used
         :param style: "serif", "sans-serif" or "monospaced"
@@ -444,14 +494,14 @@ class Boxes:
         """
         self.ctx.set_font(style, bold, italic)
 
-    def open(self):
+    def open(self) -> None:
         """
         Prepare for rendering
 
         Create canvas and edge and other objects
         Call this before .render()
         """
-        if self.ctx is not None:
+        if self.ctx is not NoneContext:
             return
 
         self.bedBoltSettings = (3, 5.5, 2, 20, 15)  # d, d_nut, h_nut, l, l1
@@ -464,7 +514,8 @@ class Boxes:
             self.ctx.set_line_width(max(2 * self.burn, 0.05))
             self.set_source_color(Color.BLACK)
 
-        self.spacing = 2 * self.burn + self.spacing[0] * self.thickness + self.spacing[1]
+        spacing = cast(tuple[float, ...], cast(object, self.spacing))   # spacing is (factor, offset) first
+        self.spacing = 2 * self.burn + spacing[0] * self.thickness + spacing[1]
         self.set_font("sans-serif")
         self._buildObjects()
         if self.reference and self.format != 'svg_Ponoko':
@@ -481,8 +532,8 @@ class Boxes:
                 self.renderQrCode()
             self.ctx.stroke()
 
-    def renderQrCode(self):
-        content = self.metadata['url_short'] or self.metadata["cli_short"]
+    def renderQrCode(self) -> None:
+        content: str = self.metadata['url_short'] or self.metadata["cli_short"]
         size = 1.5
         if content:
             with self.saved_context():
@@ -490,7 +541,7 @@ class Boxes:
                 self.text(text=content, y=6, color=Color.ANNOTATIONS, fontsize=6)
             self.qrcode(content, box_size=size, move="up only")
 
-    def buildArgParser(self, *l, **kw):
+    def buildArgParser(self, *l: str, **kw: Any) -> None:
         """
         Add commonly used arguments
 
@@ -596,20 +647,19 @@ class Boxes:
             else:
                 raise ValueError("No default for argument", arg)
 
-    def addSettingsArgs(self, settings, prefix=None, **defaults):
-        prefix = prefix or settings.__name__[:-len("Settings")]
+    def addSettingsArgs(self, settings: type[edges.Settings], prefix: str|None = None, **defaults: Any) -> None:
+        prefix: str = prefix or settings.__name__[:-len("Settings")]
         settings.parserArguments(self.argparser, prefix, **defaults)
         self.edgesettings[prefix] =  {}
 
-
-    def parseArgs(self, args=None):
+    def parseArgs(self, args : list[str]|None = None) -> None:
         """
         Parse command line parameters
 
         :param args:  (Default value = None) parameters, None for using sys.argv
         """
         if args is None:
-            args = sys.argv[1:]
+            args: list[str] = sys.argv[1:]
 
         def cliQuote(s: str) -> str:
             s = s.replace('\r', '')
@@ -639,7 +689,7 @@ class Boxes:
         self.metadata["cli_short"] = "boxes " + self.__class__.__name__ + " " + " ".join(cliQuote(arg) for arg in args if (arg.split("=")[0][2:] in self.non_default_args))
         self.metadata["cli_short"] = self.metadata["cli_short"].strip()
 
-    def addPart(self, part, name=None):
+    def addPart(self, part: Callable, name: str|None = None) -> None:
         """
         Add Edge or other part instance to this one and add it as attribute
 
@@ -647,23 +697,21 @@ class Boxes:
         :param name:  (Default value = None) attribute name (__name__ as default)
         """
         if name is None:
-            name = part.__class__.__name__
+            name = getattr(part, '__name__', part.__class__.__name__)
             name = name[0].lower() + name[1:]
-        # if not hasattr(self, name):
-        if isinstance(part, edges.BaseEdge):
+
+        if isinstance(part, Edge):
             self.edges[part.char] = part
         else:
             setattr(self, name, part)
 
-    def addParts(self, parts):
+    def addParts(self, parts: Iterator[Callable]) -> None:
         for part in parts:
             self.addPart(part)
 
-    fingerHolesAt : Any
-
     def _buildObjects(self):
         """Add default edges and parts"""
-        self.edges = {}
+        self.edges: dict[str, Edge] = {}
         self.addPart(edges.Edge(self, None))
         self.addPart(edges.OutSetEdge(self, None))
         edges.GripSettings(self.thickness).edgeObjects(self)
@@ -728,24 +776,31 @@ class Boxes:
         self.addPart(pulley.Pulley(self))
         self.addPart(parts.Parts(self))
 
-    def adjustSize(self, l, e1=True, e2=True):
+    def adjustSize(self, l: float|Sequence[float], e1: str|bool=True, e2: str|bool=True) -> float|Sequence[float]:
+        """Adjust size by removing wall dimensions, e.g. to turn outside dimensions to inner dimensions.
+
+        :param l: size [float] or sequence of sizes
+        :param e1: First edge object to get adjust values from or bool to indicate if thickness should be added
+        :param e2: Second edge object to get adjust values from or bool to indicate if thickness should be added
+        :return: adjusted size or sequence of adjusted sizes
+        """
         # Char to edge object
         e1 = self.edges.get(e1, e1)
         e2 = self.edges.get(e2, e2)
 
         try:
-            total = sum(l)
-            walls = (len(l) - 1) * self.thickness
+            total: float = sum(l)
+            walls: float = (len(l) - 1) * self.thickness
         except TypeError:
             total = l
             walls = 0
 
-        if isinstance(e1, edges.BaseEdge):
+        if isinstance(e1, Edge):
             walls += e1.startWidth() + e1.margin()
         elif e1:
             walls += self.thickness
 
-        if isinstance(e2, edges.BaseEdge):
+        if isinstance(e2, Edge):
             walls += e2.startWidth() + e2.margin()
         elif e2:
             walls += self.thickness
@@ -759,7 +814,7 @@ class Boxes:
         except TypeError:
             return l - walls
 
-    def render(self):
+    def render(self) -> None:
         """Implement this method in your subclass.
 
         You will typically need to call .parseArgs() before calling this one
@@ -767,13 +822,15 @@ class Boxes:
         # Change settings and create new Edges and part classes here
         raise NotImplementedError
 
-    def cc(self, callback, number, x=0.0, y=None, a=0.0):
+    def cc(self, callback: CallbackArg, number: int,
+           x: float=0.0, y: float|None = None, a: Degrees = 0.0) -> None:
         """Call callback from edge of a part
 
         :param callback: callback (callable or list of callables)
         :param number: number of the callback
         :param x:  (Default value = 0.0) x position to be call on
         :param y:  (Default value = None) y position to be called on (default does burn correction)
+        :param a:  (Default value = 0.0) angle in degrees
         """
         if y is None:
             y = self.burn
@@ -794,7 +851,8 @@ class Boxes:
                     callback(number)
             self.ctx.move_to(0, 0)
 
-    def getEntry(self, param, idx):
+    @staticmethod
+    def getEntry(param: list[Any]|Any, idx: int) -> Any|None:
         """
         Get entry from list or items itself
 
@@ -809,21 +867,21 @@ class Boxes:
         else:
             return param
 
-    def close(self):
+    def close(self) -> BytesIO | None:
         """Finish rendering
 
         Flush canvas to disk and convert output to requested format if needed.
         Call after .render()"""
-        if self.ctx is None:
-            return
+        if self.ctx is NoneContext:
+            return None
 
         self.ctx.stroke()
-        self.ctx = None
+        self.ctx = NoneContext
 
         self.surface.set_metadata(self.metadata)
 
         self.surface.flush()
-        data = self.surface.finish(self.inner_corners)
+        data: BytesIO = self.surface.finish(self.inner_corners)
 
         data = self.formats.convert(data, self.format)
         return data
@@ -832,19 +890,20 @@ class Boxes:
     ### Turtle graphics commands
     ############################################################
 
-    def corner(self, degrees, radius=0, tabs=0):
+    def corner(self, degrees: Degrees, radius: float= 0, tabs: int= 0):
         """
         Draw a corner
 
         This is what does the burn corrections
 
-        :param degrees: angle
-        :param radius:  (Default value = 0)
+        :param degrees: corner angle in degrees
+        :param radius: radius of round corner (Default value = 0)
+        :param tabs: number of tabs (Default value = 0)
         """
 
         try:
             degrees, radius = degrees
-        except:
+        except (TypeError, ValueError):
             pass
 
         rad = degrees * math.pi / 180
@@ -859,20 +918,20 @@ class Boxes:
 
             length = abs(r_ * rad)
             tabs = min(tabs, int(length // (tabs*3*self.tabs)))
-        if tabs and self.tabs:
-            l = (length - tabs * self.tabs) / tabs
-            lang = math.degrees(l / r_)
-            if degrees < 0:
-                lang = -lang
-            #print(degrees, radius, l, lang, tabs, math.degrees(tabrad))
-            self.corner(lang/2., radius)
-            for i in range(tabs-1):
-                self.moveArc(math.degrees(tabrad), r_)
-                self.corner(lang, radius)
             if tabs:
-                self.moveArc(math.degrees(tabrad), r_)
-            self.corner(lang/2., radius)
-            return
+                l = (length - tabs * self.tabs) / tabs
+                lang = math.degrees(l / r_)
+                if degrees < 0:
+                    lang = -lang
+                #print(degrees, radius, l, lang, tabs, math.degrees(tabrad))
+                self.corner(lang/2., radius)
+                for i in range(tabs-1):
+                    self.moveArc(math.degrees(tabrad), r_)
+                    self.corner(lang, radius)
+                if tabs:
+                    self.moveArc(math.degrees(tabrad), r_)
+                self.corner(lang/2., radius)
+                return
 
         if ((radius > 0.5* self.burn and abs(degrees) > 36) or
             (abs(degrees) > 100)):
@@ -893,10 +952,11 @@ class Boxes:
 
         self._continueDirection(rad)
 
-    def edge(self, length, tabs=0):
+    def edge(self, length: float, tabs: int = 0) -> None:
         """
         Simple line
         :param length: length in mm
+        :param tabs: number of tabs (Default value = 0)
         """
         self.ctx.move_to(0, 0)
         if tabs and self.tabs:
@@ -919,7 +979,7 @@ class Boxes:
             self.ctx.line_to(length, 0)
         self.ctx.translate(*self.ctx.get_current_point())
 
-    def step(self, out):
+    def step(self, out: float) -> None:
         """
         Create a parallel step perpendicular to the current direction
         Positive values move to the outside of the part
@@ -933,15 +993,16 @@ class Boxes:
             self.edge(-out)
             self.corner(-90)
 
-    def curveTo(self, x1, y1, x2, y2, x3, y3):
-        """control point 1, control point 2, end point
+    def curveTo(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float) -> None:
+        """Draws a bezier curve from the current position to the end point using two control points.
+           Sets the current direction to the tangent of the curve at the end point.
 
-        :param x1:
-        :param y1:
-        :param x2:
-        :param y2:
-        :param x3:
-        :param y3:
+        :param x1: X coordinate of first control point
+        :param y1: Y coordinate of first control point
+        :param x2: X coordinate of second control point
+        :param y2: Y coordinate of second control point
+        :param x3: X coordinate of end point
+        :param y3: Y coordinate of end point
         """
         self.ctx.curve_to(x1, y1, x2, y2, x3, y3)
         dx = x3 - x2
@@ -949,7 +1010,7 @@ class Boxes:
         rad = math.atan2(dy, dx)
         self._continueDirection(rad)
 
-    def polyline(self, *args):
+    def polyline(self, *args: float|tuple[float, float|int]) -> None:
         """
         Draw multiple connected lines
 
@@ -970,12 +1031,14 @@ class Boxes:
                 else:
                     self.edge(arg)
 
-    def bedBoltHole(self, length, bedBoltSettings=None, tabs=0):
+    def bedBoltHole(self, length: float,
+                    bedBoltSettings: tuple[float, float, float, float, float]|None = None,
+                    tabs: int = 0) -> None:
         """
         Draw an edge with slot for a bed bolt
 
         :param length: length of the edge in mm
-        :param bedBoltSettings:  (Default value = None) Dimensions of the slot
+        :param bedBoltSettings:  (Default value = None) Dimensions of the slot (d, d_nut, h_nut, l, l1)
         """
         d, d_nut, h_nut, l, l1 = bedBoltSettings or self.bedBoltSettings
         self.edge((length - d) / 2.0, tabs=tabs//2)
@@ -1004,16 +1067,21 @@ class Boxes:
         self.corner(90)
         self.edge((length - d) / 2.0, tabs=tabs-(tabs//2))
 
-    def edgeCorner(self, edge1, edge2, angle=90):
-        """Make a corner between two Edges. Take width of edges into account"""
-        edge1 = self.edges.get(edge1, edge1)
-        edge2 = self.edges.get(edge2, edge2)
+    def edgeCorner(self, edge1: EdgeArg, edge2: EdgeArg, angle: Degrees = 90) -> None:
+        """Make a corner between two edges. Take width of edges into account.
+        :param edge1: first edge object or edge char
+        :param edge2: second edge object or edge char
+        :param angle: angle of the corner in degrees (Default value = 90)
+        """
+        edge1: Edge = self.edges.get(edge1, edge1)
+        edge2: Edge = self.edges.get(edge2, edge2)
 
         self.edge(edge2.startWidth() * math.tan(math.radians(angle/2.)))
         self.corner(angle)
         self.edge(edge1.endWidth() * math.tan(math.radians(angle/2.)))
 
-    def regularPolygon(self, corners=3, radius=None, h=None, side=None):
+    def regularPolygon(self, corners: int = 3, radius: float|None = None, h: float|None = None,
+                       side: float|None = None) -> tuple[float, float, float]:
         """Give measures of a regular polygon
 
         :param corners: number of corners of the polygon
@@ -1035,7 +1103,8 @@ class Boxes:
         return radius, h, side
 
     @restore
-    def regularPolygonAt(self, x, y, corners, angle=0, r=None, h=None, side=None):
+    def regularPolygonAt(self, x: float, y: float, corners: int, angle: Degrees = 0,
+                         r: float|None = None, h: float|None = None, side: float|None = None) -> None:
         """Draw regular polygon"""
         self.moveTo(x, y, angle)
         r, h, side  = self.regularPolygon(corners, r, h, side)
@@ -1044,8 +1113,9 @@ class Boxes:
             self.edge(side)
             self.corner(360./corners)
 
-    def regularPolygonWall(self, corners=3, r=None, h=None, side=None,
-                           edges='e', hole=None, callback=None, move=None):
+    def regularPolygonWall(self, corners: int = 3, r: float|None = None, h: float|None = None,
+                           side: float|None = None, edges: EdgeSeq = 'e',
+                           hole: float|None = None, callback: CallbackArg = None, move: str|None = None) -> None:
         """Create regular polygon as a wall
 
         :param corners: number of corners of the polygon
@@ -1054,7 +1124,7 @@ class Boxes:
         :param side: length of one side
         :param edges:  (Default value = "e", may be string/list of length corners)
         :param hole: diameter of central hole (Default value = 0)
-        :param callback:  (Default value = None, middle=0, then sides=1..)
+        :param callback:  (Default value = None) will be called several times with 0 for middle, then 1.. for the sides
         :param move:  (Default value = None)
         """
         r, h, side  = self.regularPolygon(corners, r, h, side)
@@ -1097,7 +1167,7 @@ class Boxes:
 
         self.move(tw, th, move)
 
-    def grip(self, length, depth):
+    def grip(self, length: float, depth: float) -> None:
         """Corrugated edge useful as a gipping area
 
         :param length: length
@@ -1105,12 +1175,12 @@ class Boxes:
         """
         grooves = max(int(length // (depth * 2.0)) + 1, 1)
         depth = length / grooves / 4.0
-        for groove in range(grooves):
+        for _ in range(grooves):
             self.corner(90, depth)
             self.corner(-180, depth)
             self.corner(90, depth)
 
-    def _latchHole(self, length):
+    def _latchHole(self, length: float) -> None:
         """
         :param length:
         """
@@ -1120,20 +1190,22 @@ class Boxes:
         self.corner(-90)
         self.edge(1.1 * self.thickness)
 
-    def _latchGrip(self, length, extra_length=0.0):
+    def _latchGrip(self, length: float, extra_length: float = 0.0) -> None:
         """
-        :param length:
+        :param length: length in mm
+        :param extra_length: extra length in mm
         """
         self.corner(90, self.thickness / 4.0)
         self.grip(length / 2.0 - self.thickness / 2.0 - 0.2 * self.thickness + extra_length, self.thickness / 2.0)
         self.corner(90, self.thickness / 4.0)
 
-    def latch(self, length, positive=True, reverse=False, extra_length=0.0):
+    def latch(self, length: float, positive: bool = True, reverse: bool = False, extra_length: float = 0.0) -> None:
         """Latch to fix a flex box door to the box
 
         :param length: length in mm
         :param positive:  (Default value = True) False: Door side; True: Box side
         :param reverse:  (Default value = False) True when running away from the latch
+        :param extra_length:  (Default value = 0.0) extra length in mm
         """
         t = self.thickness
         if positive:
@@ -1152,7 +1224,7 @@ class Boxes:
             else:
                 self.corner(90)
 
-    def handle(self, x, h, hl, r=30):
+    def handle(self, x: float, h: float, hl: float, r: float = 30) -> None:
         """Creates an Edge with a handle
 
         :param x: width in mm
@@ -1184,29 +1256,29 @@ class Boxes:
 
     ### Navigation
 
-    def moveTo(self, x, y=0.0, degrees=0):
+    def moveTo(self, x: float, y: float = 0.0, degrees: Degrees = 0) -> None:
         """
         Move coordinate system to given point
 
-        :param x:
-        :param y:  (Default value = 0.0)
-        :param degrees:  (Default value = 0)
+        :param x: x position
+        :param y: y position (Default value = 0.0)
+        :param degrees: heading afterwards in degrees (Default value = 0)
         """
         self.ctx.move_to(0, 0)
         self.ctx.translate(x, y)
         self.ctx.rotate(degrees * math.pi / 180.0)
         self.ctx.move_to(0, 0)
 
-    def moveArc(self, angle, r=0.0):
+    def moveArc(self, angle: Degrees, r: float = 0.0) -> None   :
         """
-        :param angle:
-        :param r: (Default value = 0.0)
+        :param angle: angle in degrees
+        :param r: radius in mm (Default value = 0.0)
         """
         if r < 0:
             r = -r
             angle = -angle
 
-        rad = math.radians(angle)
+        rad: Radians = math.radians(angle)
         if angle > 0:
             self.moveTo(r*math.sin(rad),
                         r*(1-math.cos(rad)), angle)
@@ -1214,16 +1286,16 @@ class Boxes:
             self.moveTo(r*math.sin(-rad),
                         -r*(1-math.cos(rad)), angle)
 
-    def _continueDirection(self, angle=0):
+    def _continueDirection(self, angle: Radians = 0.) -> None:
         """
         Set coordinate system to current position (end point)
 
-        :param angle:  (Default value = 0) heading
+        :param angle:  (Default value = 0) heading in radians
         """
         self.ctx.translate(*self.ctx.get_current_point())
         self.ctx.rotate(angle)
 
-    def move(self, x, y, where, before=False, label=""):
+    def move(self, x: float, y: float, where: str|None, before: bool = False, label: str = ""):
         """
         Intended to be used by parts to implement the move parameter.
 
@@ -1251,7 +1323,8 @@ class Boxes:
         :param x: width of part
         :param y: height of part
         :param where: which direction to move
-        :param before:  (Default value = False) called before or after part being drawn
+        :param before: (Default value = False) called before or after part being drawn
+        :param label: (Default value = "") label for part
         :return: whether drawing the part should be skipped
         """
         if not where:
@@ -1317,7 +1390,7 @@ class Boxes:
         return dontdraw
 
     @restore
-    def circle(self, x, y, r):
+    def circle(self, x: float, y: float, r: float) -> None:
         """
         Draw a round disc
 
@@ -1337,15 +1410,19 @@ class Boxes:
 
     @restore
     @holeCol
-    def regularPolygonHole(self, x, y, r=0.0, d=0.0, n=6, a=0.0, tabs=0, corner_radius=0.0):
+    def regularPolygonHole(self, x: float, y: float, r: float = 0.0, d: float = 0.0, n: int = 6, a: Degrees = 0.0,
+                           tabs: int = 0, corner_radius: float = 0.0) -> None:
         """
         Draw a hole in shape of an n-edged regular polygon
 
         :param x: x position
         :param y: y position
-        :param r: radius
+        :param r: radius of polygon (overrides d; default value = 0.0)
+        :param d: diameter of polygon (default value = 0.0)
         :param n: number of edges
-        :param a: rotation angle
+        :param a: rotation angle in degrees
+        :param tabs: number of tabs (default value = 0)
+        :param corner_radius: radius of the corners (default value = 0.0)
         """
 
         if not r:
@@ -1381,13 +1458,15 @@ class Boxes:
 
     @restore
     @holeCol
-    def hole(self, x, y, r=0.0, d=0.0, tabs=0):
+    def hole(self, x: float, y: float, r: float = 0.0, d: float = 0.0, tabs: int = 0) -> None:
         """
         Draw a round hole
 
         :param x: x position
         :param y: y position
-        :param r: radius
+        :param r: radius (overrides d; default value = 0.0)
+        :param d: diameter (default value = 0.0)
+        :param tabs: number of tabs (default value = 0)
         """
 
         if not r:
@@ -1400,17 +1479,17 @@ class Boxes:
 
     @restore
     @holeCol
-    def rectangularHole(self, x, y, dx, dy, r=0, center_x=True, center_y=True):
+    def rectangularHole(self, x: float, y: float, dx: float, dy: float, r: float = 0.0, center_x: bool = True, center_y: bool = True) -> None:
         """
         Draw a rectangular hole
 
-        :param x: x position
-        :param y: y position
+        :param x: x position (of center or left side depending on center_x)
+        :param y: y position (of center or bottom depending on center_y)
         :param dx: width
         :param dy: height
         :param r:  (Default value = 0) radius of the corners
-        :param center_x:  (Default value = True) if True, x position is the center, else the start
-        :param center_y:  (Default value = True) if True, y position is the center, else the start
+        :param center_x:  (Default value = True) if True, x position is the center, else the left side
+        :param center_y:  (Default value = True) if True, y position is the center, else the bottom side
         """
         r = min(r, dx/2., dy/2.)
         x_start = x if center_x else x + dx / 2.0
@@ -1423,7 +1502,7 @@ class Boxes:
 
     @restore
     @holeCol
-    def dHole(self, x, y, r=None, d=None, w=None, rel_w=0.75, angle=0):
+    def dHole(self, x: float, y: float, r: float = 0.0, d: float = 0.0, w: float = None, rel_w: float = 0.75, angle: float = 0) -> None:
         """
         Draw a hole for a shaft with flat edge - D shaped hole
 
@@ -1436,7 +1515,7 @@ class Boxes:
         :param angle: orientation (rotation) of the flat side
         """
 
-        if r is None:
+        if not r:
             r = d / 2.0
         if w is None:
             w = 2.0 * r * rel_w
@@ -1455,7 +1534,7 @@ class Boxes:
 
     @restore
     @holeCol
-    def flatHole(self, x, y, r=None, d=None, w=None, rel_w=0.75, angle=0):
+    def flatHole(self, x: float, y: float, r: float = 0.0, d: float = 0.0, w: float = None, rel_w: float = 0.75, angle: Degrees = 0) -> None:
         """
         Draw a hole for a shaft with two opposed flat edges - ( ) shaped hole
 
@@ -1464,11 +1543,11 @@ class Boxes:
         :param r: radius (overrides d)
         :param d: diameter
         :param w: width measured against flat side in mm
-        :param rel_w: width in percent
-        :param angle: orientation (rotation) of the flat sides
+        :param rel_w: relative width as factor (Default value = 0.75, i.e. 75%)
+        :param angle: orientation (rotation) in degrees of the flat sides
         """
 
-        if r is None:
+        if not r:
             r = d / 2.0
         if w is None:
             w = r * rel_w
@@ -1491,7 +1570,7 @@ class Boxes:
 
     @restore
     @holeCol
-    def mountingHole(self, x, y, d_shaft, d_head=0.0, angle=0, tabs=0):
+    def mountingHole(self, x: float, y: float, d_shaft: float, d_head: float = 0.0, angle: Degrees = 0, tabs: int = 0) -> None:
         """
         Draw a pear shaped mounting hole for sliding over a screw head. Total height = 1.5* d_shaft + d_head
 
@@ -1499,7 +1578,8 @@ class Boxes:
         :param y: y position
         :param d_shaft: diameter of the screw shaft
         :param d_head: diameter of the screw head
-        :param angle: rotation angle of the hole
+        :param angle: rotation angle in degrees of the hole (Default value = 0)
+        :param tabs: number of tabs (Default value = 0)
         """
 
         if d_shaft < (2 * self.burn):
@@ -1515,7 +1595,7 @@ class Boxes:
         self.moveTo(x, y, angle)
         self.moveTo(0, rs - self.burn, 0)
         self.corner(-180, rs, tabs)
-        self.edge(2 * rs,tabs)
+        self.edge(2 * rs, tabs)
         a = math.degrees(math.asin(rs / rh))
         self.corner(90 - a, 0, tabs)
         self.corner(-360 + 2 * a, rh, tabs)
@@ -1523,15 +1603,16 @@ class Boxes:
         self.edge(2 * rs, tabs)
 
     @restore
-    def text(self, text, x=0, y=0, angle=0, align="", fontsize=10, color=[0.0, 0.0, 0.0], font="Arial"):
+    def text(self, text: str, x: float = 0, y: float = 0, angle: Degrees = 0, align: str = "",
+             fontsize: int = 10, color: ColorValue = [0.0, 0.0, 0.0], font: str = "Arial"):
         """
         Draw text
 
         :param text: text to render
-        :param x:  (Default value = 0)
-        :param y:  (Default value = 0)
-        :param angle:  (Default value = 0)
-        :param align:  (Default value = "") string with combinations of (top|middle|bottom) and (left|center|right) separated by a space
+        :param x: x position (Default value = 0)
+        :param y: y position (Default value = 0)
+        :param angle: rotation angle in degrees (Default value = 0)
+        :param align: alignment (Default value = "") string with combinations of (top|middle|bottom) and (left|center|right) separated by a space
         """
         self.moveTo(x, y, angle)
         text = text.split("\n")
@@ -1589,13 +1670,13 @@ class Boxes:
 
     @restore
     @holeCol
-    def TX(self, size, x=0, y=0, angle=0):
+    def TX(self, size: int, x: float = 0, y: float = 0, angle: Degrees = 0) -> None:
         """Draw a star pattern
 
         :param size: 1 to 100
-        :param x: (Default value = 0)
-        :param y: (Default value = 0)
-        :param angle: (Default value = 0)
+        :param x: x position (Default value = 0)
+        :param y: y position (Default value = 0)
+        :param angle: rotation angle in degrees (Default value = 0)
         """
         self.moveTo(x, y, angle)
 
@@ -1609,7 +1690,7 @@ class Boxes:
             self.corner(-150, ro)
             self.corner(45, ri)
 
-    nema_sizes = {
+    nema_sizes: dict[int, tuple[float, float, float, float]] = {
         #    motor,flange, holes, screws
         8: (20.3, 16, 15.4, 3),
         11: (28.2, 22, 23, 4),
@@ -1623,14 +1704,14 @@ class Boxes:
     }
 
     @restore
-    def NEMA(self, size, x=0, y=0, angle=0, screwholes=None):
+    def NEMA(self, size: int, x: float = 0, y: float = 0, angle: Degrees = 0, screwholes: float | None = None) -> None:
         """Draw holes for mounting a NEMA stepper motor
 
         :param size: Nominal size in tenths of inches
-        :param x:  (Default value = 0)
-        :param y:  (Default value = 0)
-        :param angle:  (Default value = 0)
-        :param screwholes:
+        :param x: x position (Default value = 0)
+        :param y: y position (Default value = 0)
+        :param angle: rotation angle in degrees (Default value = 0)
+        :param screwholes: diameter of the screw holes (Default value = None)
         """
         width, flange, holedistance, diameter = self.nema_sizes[size]
         if screwholes:
@@ -1645,7 +1726,13 @@ class Boxes:
                           y * 0.5 * holedistance,
                           0.5 * diameter)
 
-    def drawPoints(self, lines, kerfdir=1, close=True):
+    def drawPoints(self, lines: Sequence[PointType], kerfdir: int = 1, close: bool = True) -> None:
+        """Draw a polygon defined by a list of points.
+
+        :param lines: list of points [(x0,y0), (x1,y1),...]
+        :param kerfdir: 1 for outside, -1 for inside, 0 for no kerf compensation (Default value = 1)
+        :param close: whether to close the polygon (Default value = True)
+        """
 
         if not lines:
             return
@@ -1663,7 +1750,14 @@ class Boxes:
             self.ctx.line_to(*lines[0])
         self.ctx.restore()
 
-    def qrcode(self, content: str, box_size: float = 1.0, color=Color.ETCHING, move: str | None = None):
+    def qrcode(self, content: str, box_size: float = 1.0, color: ColorValue = Color.ETCHING, move: str | None = None) -> None:
+        """Create QR code
+
+        :param content: content of the QR code
+        :param box_size: size of the box (Default value = 1.0)
+        :param color: color of the box (Default value = Color.ETCHING)
+        :param move: move direction (Default value = None)
+        """
         q = qrcode.QRCode(image_factory=BoxesQrCodeFactory, box_size=box_size*10)
         q.add_data(content)
         m = q.get_matrix()
@@ -1677,7 +1771,7 @@ class Boxes:
         self.move(tw, th, move)
 
     @restore
-    def showBorderPoly(self,border,color=Color.ANNOTATIONS):
+    def showBorderPoly(self, border: Sequence[PointType], color: ColorValue = Color.ANNOTATIONS) -> None:
         """
         draw border polygon (for debugging only)
 
@@ -1702,7 +1796,9 @@ class Boxes:
 
     @restore
     @holeCol
-    def fillHoles(self, pattern, border, max_radius, hspace=3, bspace=0, min_radius=0.5, style="round", bar_length=50, max_random=1000):
+    def fillHoles(self, pattern: str, border: Sequence[Point], max_radius: float,
+                  hspace: float= 3, bspace: float= 0, min_radius: float= 0.5,
+                  style: str= "round", bar_length: float=50, max_random: int= 1000) -> None:
         """
         fill a polygon defined by its outline with holes
 
@@ -1735,8 +1831,6 @@ class Boxes:
             a = 22.5
         else:
             raise ValueError(f"fillHoles - unknown hole style: {style})")
-
-# note to myself: ^y  x>
 
         if self.debug:
             self.showBorderPoly(border)
@@ -2037,7 +2131,7 @@ class Boxes:
         else:
            raise ValueError(f"fillHoles - unknown hole pattern: {pattern})")
 
-    def hexHolesRectangle(self, x, y, settings=None, skip=None):
+    def hexHolesRectangle(self, x: float, y: float, settings: edges.Settings = None, skip: Callable[[float, float, float, float, float, float], bool] | None = None) -> None:
         """Fills a rectangle with holes in a hex pattern.
 
         Settings have:
@@ -2077,11 +2171,11 @@ class Boxes:
                     continue
                 self.hole(px, py, r=r)
 
-    def __skipcircle(self, x, y, r, b, posx, posy):
+    def __skipcircle(self, x: float, y: float, r: float, b: float, posx: float, posy: float) -> bool:
         cx, cy = x / 2.0, y / 2.0
         return (dist(posx - cx, posy - cy) > (cx - r))
 
-    def hexHolesCircle(self, d, settings=None):
+    def hexHolesCircle(self, d: float, settings: edges.Settings = None) -> None:
         """
         Fill circle with holes in a hex pattern
 
@@ -2091,7 +2185,7 @@ class Boxes:
         d2 = d / 2.0
         self.hexHolesRectangle(d, d, settings=settings, skip=self.__skipcircle)
 
-    def hexHolesPlate(self, x, y, rc, settings=None):
+    def hexHolesPlate(self, x: float, y: float, rc: float, settings: edges.Settings = None) -> None:
         """
         Fill a plate with holes in a hex pattern
 
@@ -2101,7 +2195,7 @@ class Boxes:
         :param settings:  (Default value = None)
         """
 
-        def skip(x, y, r, b, posx, posy):
+        def skip(x: float, y: float, r: float, b: float, posx: float, posy: float) -> bool:
             """
             :param x:
             :param y:
@@ -2122,7 +2216,7 @@ class Boxes:
 
         self.hexHolesRectangle(x, y, settings, skip=skip)
 
-    def hexHolesHex(self, h, settings=None, grow=None):
+    def hexHolesHex(self, h: float, settings: edges.Settings = None, grow: str = None) -> None:
         """
         Fill a hexagon with holes in a hex pattern
 
@@ -2150,12 +2244,12 @@ class Boxes:
         self.moveTo(h / 2.0 - (cy // 2) * 2 * w, h / 2.0)
         for j in range(cy):
             self.hole(2 * j * w, 0, r)
-        for i in range(1, cy / 2 + 1):
+        for i in range(1, cy // 2 + 1):
             for j in range(cy - i):
                 self.hole(j * 2 * w + i * w, i * 2 * dist, r)
                 self.hole(j * 2 * w + i * w, -i * 2 * dist, r)
 
-    def flex2D(self, x, y, width=1):
+    def flex2D(self, x: float, y: float, width: float = 1) -> None:
         """
         Fill a rectangle with a pattern allowing bending in both axis
 
@@ -2194,7 +2288,7 @@ class Boxes:
         self.ctx.stroke()
 
     @restore
-    def fingerHoleRectangle(self, dx, dy, x=0., y=0., angle=0., outside=False):
+    def fingerHoleRectangle(self, dx: float, dy: float, x: float = 0., y: float = 0., angle: float = 0., outside: bool = False) -> None:
         """
         Place finger holes for four walls - attaching a box on this plane
 
@@ -2219,7 +2313,7 @@ class Boxes:
     ### parts
     ##################################################
 
-    def _splitWall(self, pieces, side):
+    def _splitWall(self, pieces: int, side: int) -> bool:
         """helper for roundedPlate and surroundingWall
         figures out what sides to split
         """
@@ -2233,19 +2327,19 @@ class Boxes:
 
     def roundedPlate(
         self,
-        x,
-        y,
-        r,
-        edge="f",
-        callback=None,
-        holesMargin=None,
-        holesSettings=None,
-        bedBolts=None,
-        bedBoltSettings=None,
-        wallpieces=1,
-        extend_corners=True,
-        move=None,
-        label=None,
+        x: float,
+        y: float,
+        r: float,
+        edge: str = "f",
+        callback: CallbackArg = None,
+        holesMargin: float | None = None,
+        holesSettings: edges.Settings | None = None,
+        bedBolts: Sequence[Point] | None = None,
+        bedBoltSettings: edges.Settings | None = None,
+        wallpieces: int = 1,
+        extend_corners: bool = True,
+        move: Point = None,
+        label: str = None,
     ):
         """Plate with rounded corner fitting to .surroundingWall()
 
@@ -2330,7 +2424,7 @@ class Boxes:
 
         self.move(overallwidth, overallheight, move, label=label)
 
-    def surroundingWallPiece(self, cbnr, x, y, r, pieces=1):
+    def surroundingWallPiece(self, cbnr: int, x: float, y: float, r: float, pieces: int = 1):
         """
         Return the geometry of a pices of surroundingWall with the given
         callback number.
@@ -2364,13 +2458,13 @@ class Boxes:
                 wallcount += 1
         return (False, 0.0, False)
 
-    def surroundingWall(self, x, y, r, h,
-                        bottom='e', top='e',
-                        left="D", right="d",
-                        pieces=1,
-                        extend_corners=True,
-                        callback=None,
-                        move=None):
+    def surroundingWall(self, x: float, y: float, r: float, h: float,
+                        bottom: EdgeArg = 'e', top: EdgeArg = 'e',
+                        left: EdgeArg = "D", right: EdgeArg = "d",
+                        pieces: int = 1,
+                        extend_corners: bool = True,
+                        callback: CallbackArg = None,
+                        move: str|None = None) -> None:
         """
         Wall(s) with flex filing around a roundedPlate()
 
@@ -2469,13 +2563,16 @@ class Boxes:
 
         self.move(overallwidth, overallheight, move)
 
-    def rectangularWall(self, x, y, edges="eeee",
-                        ignore_widths=[],
-                        holesMargin=None, holesSettings=None,
-                        bedBolts=None, bedBoltSettings=None,
-                        callback=None,
-                        move=None,
-                        label=""):
+    def rectangularWall(self, x: float, y: float,
+                        edges: Sequence[EdgeArg] = "eeee",
+                        ignore_widths: list[int] = [],
+                        holesMargin: float|None = None,
+                        holesSettings: edges.Settings|None = None,
+                        bedBolts = None,
+                        bedBoltSettings: edges.Settings|None = None,
+                        callback: CallbackArg = None,
+                        move: str|None = None,
+                        label: str = "") -> None:
         """
         Rectangular wall for all kind of box like objects
 
@@ -2515,7 +2612,7 @@ class Boxes:
         """
         if len(edges) != 4:
             raise ValueError("four edges required")
-        edges = [self.edges.get(e, e) for e in edges]
+        edges: list[Edge] = [self.edges.get(e, e) for e in edges]
         edges += edges  # append for wrapping around
         overallwidth = x + edges[-1].spacing() + edges[1].spacing()
         overallheight = y + edges[0].spacing() + edges[2].spacing()
@@ -2608,11 +2705,12 @@ class Boxes:
             self.corner(90, rr)
         self.move(tw, th, move, label=label)
 
-    def rectangularTriangle(self, x, y, edges="eee", r=0.0, num=1,
-                        bedBolts=None, bedBoltSettings=None,
-                        callback=None,
-                        move=None,
-                        label=""):
+    def rectangularTriangle(self, x: float, y: float, edges: Sequence[EdgeArg] = "eee", r: float = 0.0, num: int = 1,
+                        bedBolts: float|tuple[float, float, float, float]|None = None,
+                        bedBoltSettings: edges.Settings|tuple[edges.Settings, edges.Settings, edges.Settings, edges.Settings]|None = None,
+                        callback: CallbackArg = None,
+                        move: str|None = None,
+                        label: str = "") -> None:
         """
         Rectangular triangular wall
 
@@ -2686,9 +2784,9 @@ class Boxes:
 
         self.move(overallwidth, overallheight, move, label=label)
 
-    def trapezoidWall(self, w, h0, h1, edges="eeee",
-                           callback=None, move=None,
-                           label=""):
+    def trapezoidWall(self, w: float, h0: float, h1: float, edges: Sequence[EdgeArg] = "eeee",
+                           callback: CallbackArg = None, move: str|None = None,
+                           label: str = "") -> None:
         """
         Rectangular trapezoidal wall
 
@@ -2730,9 +2828,9 @@ class Boxes:
 
         self.move(overallwidth, overallheight, move, label=label)
 
-    def trapezoidSideWall(self, w, h0, h1, edges="eeee",
-                          radius=0.0, callback=None, move=None,
-                          label=""):
+    def trapezoidSideWall(self, w: float, h0: float, h1: float, edges: Sequence[EdgeArg] = "eeee",
+                          radius: float = 0.0, callback: CallbackArg = None, move: str|None = None,
+                          label: str = "") -> None:
         """
         Rectangular trapezoidal wall
 
@@ -2789,12 +2887,12 @@ class Boxes:
 
     ### polygonWall and friends
 
-    def _polygonWallExtend(self, borders, edges, close=False):
+    def _polygonWallExtend(self, borders: list[Border], edges: Sequence[Edge], close: bool = False) -> list[float]:
         posx, posy = 0, 0
         ext = [ 0.0 ] * 4
         angle = 0
 
-        def _angle_in_sweep(start, sweep, target):
+        def _angle_in_sweep(start: float, sweep: float, target: float) -> bool:
             """Return True if target angle is part of an angular sweep."""
             if abs(sweep) >= 360:
                 return True
@@ -2804,14 +2902,14 @@ class Boxes:
                 return ((target - start) % 360) <= sweep
             return ((start - target) % 360) <= -sweep
 
-        def checkpoint(ext, x, y):
+        def checkpoint(ext: list[float], x: float, y: float) -> None:
             ext[0] = min(ext[0], x)
             ext[1] = min(ext[1], y)
             ext[2] = max(ext[2], x)
             ext[3] = max(ext[3], y)
 
         # trace edge margins
-        nborders = []
+        nborders: list[float] = []
         for i, val  in enumerate(borders):
             if i % 2:
                 nborders.append(val)
@@ -2866,7 +2964,7 @@ class Boxes:
 
         return ext
 
-    def _closePolygon(self, borders):
+    def _closePolygon(self, borders: list[Border]) -> list[Border]:
         posx, posy = 0, 0
         angle = 0.0
 
@@ -2910,9 +3008,9 @@ class Boxes:
         #print(borders)
         return borders
 
-    def polygonWall(self, borders, edge="f", turtle=False,
-                    correct_corners=True,
-                    callback=None, move=None, label=""):
+    def polygonWall(self, borders: list[Border], edge: EdgeSeq = "f", turtle: bool = False,
+                    correct_corners: bool = True,
+                    callback: CallbackArg = None, move: str|None = None, label: str = "") -> None:
         """
         Polygon wall for all kind of multi-edged objects
 
@@ -2967,7 +3065,7 @@ class Boxes:
             self.move(tw, th, move, label=label)
 
     @restore
-    def polygonWalls(self, borders, h, bottom="F", top="F", symmetrical=True):
+    def polygonWalls(self, borders: list[Border], h: float, bottom: EdgeArg = "F", top: EdgeArg = "F", symmetrical: bool = True) -> None:
         if not borders:
             return
 
@@ -3060,7 +3158,7 @@ class Boxes:
     ### Place Parts
     ##################################################
 
-    def partsMatrix(self, n, width, move, part, *l, **kw):
+    def partsMatrix(self, n: int, width: int, move: str|None, part: Callable, *l: Any, **kw: Any) -> None:
         """place many of the same part
 
         :param n: number of parts
@@ -3117,7 +3215,7 @@ class Boxes:
             for i in range(width):
                 part(*l, **kw)
 
-    def mirrorX(self, f, offset=0.0):
+    def mirrorX(self, f: Callable[[], None], offset: float = 0.0) -> Callable[[], None]:
         """Wrap a function to draw mirrored at the y axis
 
         :param f: function to wrap
@@ -3130,7 +3228,7 @@ class Boxes:
                 f()
         return r
 
-    def mirrorY(self, f, offset=0.0):
+    def mirrorY(self, f: Callable[[], None], offset: float = 0.0) -> Callable[[], None]:
         """Wrap a function to draw mirrored at the x axis
 
         :param f: function to wrap

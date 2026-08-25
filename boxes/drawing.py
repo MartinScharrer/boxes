@@ -56,7 +56,7 @@ class Surface:
     def flush(self):
         pass
 
-    def finish(self):
+    def finish(self, inner_corners: str = "loop") -> io.BytesIO:
         pass
 
     def _adjust_coordinates(self):
@@ -488,7 +488,7 @@ class SVGSurface(Surface):
         m.tail = '\n'
         root.insert(0, m)
 
-    def finish(self, inner_corners="loop"):
+    def finish(self, inner_corners: str= "loop") -> io.BytesIO:
         extents = self._adjust_coordinates()
         w = extents.width * self.scale
         h = extents.height * self.scale
@@ -642,7 +642,7 @@ class PSSurface(Surface):
             desc += f'%%SettingsUrl short: {settings_url_short}\n'
         return desc
 
-    def finish(self, inner_corners="loop"):
+    def finish(self, inner_corners: str = "loop") -> io.BytesIO:
 
         extents = self._adjust_coordinates()
         w = extents.width
@@ -775,7 +775,7 @@ class LBRN2Surface(Surface):
         8,  # Colors.OUTER_CUT    (WHITE)   --> Lightburn C08 (grey)
         ]
 
-    def finish(self, inner_corners="loop"):
+    def finish(self, inner_corners: str = "loop") -> io.BytesIO:
         if self.dbg: print("LBRN2 save")
         extents = self._adjust_coordinates()
         w = extents.width * self.scale

@@ -305,7 +305,7 @@ class Settings:
 
 class BaseEdge(ABC):
     """Abstract base class for all Edges"""
-    char: str | None = None
+    char: str = ''
     description: str = "Abstract Edge Class"
 
     def __init__(self, boxes, settings) -> None:

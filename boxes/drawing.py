@@ -57,7 +57,7 @@ class Surface:
         pass
 
     def finish(self, inner_corners: str = "loop") -> io.BytesIO:
-        pass
+        raise NotImplementedError
 
     def _adjust_coordinates(self):
         extents = self.extents()
@@ -488,7 +488,7 @@ class SVGSurface(Surface):
         m.tail = '\n'
         root.insert(0, m)
 
-    def finish(self, inner_corners: str= "loop") -> io.BytesIO:
+    def finish(self, inner_corners: str = "loop") -> io.BytesIO:
         extents = self._adjust_coordinates()
         w = extents.width * self.scale
         h = extents.height * self.scale
@@ -525,7 +525,7 @@ class SVGSurface(Surface):
                 p = []
                 x, y = 0, 0
                 start = None
-                last = None
+                last = [0., 0.]
                 path.faster_edges(inner_corners)
                 for c in path.path:
                     x0, y0 = x, y

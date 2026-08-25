@@ -85,12 +85,12 @@ def rotm(angle: Radians) -> Matrix:
 
 def vtransl(v: Vector, m: Matrix) -> Vector:
     m0, m1 = m
-    return [m0[0] * v[0] + m0[1] * v[1] + m0[2],
-            m1[0] * v[0] + m1[1] * v[1] + m1[2]]
+    return (m0[0] * v[0] + m0[1] * v[1] + m0[2],
+            m1[0] * v[0] + m1[1] * v[1] + m1[2])
 
 
 def mmul(m0: Matrix, m1: Matrix) -> Matrix:
-    result = [[0, ] * len(m0[0]) for i in range(len(m0))]
+    result = [[0., ] * len(m0[0]) for i in range(len(m0))]
     for i in range(len(m0[0])):
         for j in range(len(m0)):
             for k in range(len(m0)):

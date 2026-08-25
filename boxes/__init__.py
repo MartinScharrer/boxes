@@ -3176,7 +3176,7 @@ class Boxes:
 
         rows = n//width + (1 if n % width else 0)
 
-        if not move:
+        if move is None:
             move = ""
         move = move.split()
 
